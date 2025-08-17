@@ -1,11 +1,11 @@
 # led_controller
 Extended led controller for single LED.
 
-#Decription 
+# Description 
 Simple LED controller based on system timer with perion 100 uS. 
 Provide two modes of working - simple pattern with configuradable pattern, time on & off (in mS), bright for on stage (1-10). And extended mode, with controlled steps, light, length, and external functions for check of needed of proceed this step. 
 
-#Using 
+# Using 
 Include "led_con.h" in your hal init
 Call led_con_init and transmit to it pin_struct for your LED
 Rtuern value will be clb for timer interrupt 
