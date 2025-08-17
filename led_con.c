@@ -27,6 +27,7 @@ static uint8_t __led_curr_pos_light = 0;
 static uint8_t __led_for_us_count = 0; 
 static uint16_t __led_current_count_ms = 0;
 static __led_stages __led_stage_now = _lc_idle; 
+static __led_stages __new_stage = _lc_skip;
 static _led_lc_control _fn_control;
 static _led_pat_stage _simple_step;
 static uint8_t LGS_pos = 0;
@@ -34,6 +35,7 @@ static uint8_t LGS_pos_step = 0;
 static _led_simple_pattern * _current_pattern; 
 static uint8_t _stage_pos = 0;
 static uint8_t _stages_repeats = 0;
+static uint8_t _extended_repeats = 0;
 
 
 //API functions
@@ -53,22 +55,34 @@ void led_start_simple_stage(_led_simple_pattern * simple_pattern){
 	_current_pattern = simple_pattern;
 	_stage_pos = 0;
 	_stages_repeats = 0;
-	__led_stage_now = _led_get_next_stage ();
+	__new_stage = _led_get_next_stage ();
+	__led_stage_now = _lc_change; 
 }
 
 //Start extended pattern
 void led_start_extend_stage(_led_pattern * extend_pattern){
+	LGS_pos = 0;
+	LGS_pos_step = 0;
+	_extended_repeats = 0;
 	_fn_control.control_enable = true;
 	_fn_control.control_next_stage = _led_get_next_stage_extend;
 	_fn_control.step = extend_pattern->steps[0].step[0];
-	__led_stage_now = _lc_control;
+	_fn_control.pattern_link = extend_pattern;
+	__new_stage = _lc_control;
+	__led_stage_now = _lc_change;
 }
 
 
 void led_go(void){
-
 	//_led_start_simple_stage(&demo_simple);
 	led_start_extend_stage(&demo);
+}
+
+void led_stop(void){
+	_fn_control.control_next_stage = 0;
+	_fn_control.control_enable = false;
+	__led_stage_now = _lc_idle; 
+	
 }
 
 //Internal functions
@@ -78,6 +92,7 @@ void led_con_comm(void){
 	switch (__led_stage_now){
 		case _lc_idle:
 			__led_current_count_ms = 0;
+			_led_set_bright(LED_IDLE_BRIGHT);
 			break; 
 		case _lc_simple:
 			_led_set_bright(_simple_step.light);
@@ -98,6 +113,12 @@ void led_con_comm(void){
 				}
 			}
 			break;
+		case _lc_change:
+			if (__new_stage != _lc_skip){
+				__led_stage_now = __new_stage;
+				__new_stage = _lc_skip;
+				break;
+			}
 		case _lc_skip:
 			_led_set_bright(0);
 			if (_fn_control.control_next_stage == 0){
@@ -124,6 +145,10 @@ __led_stages _led_get_next_stage(void){
 				if (_stages_repeats < _current_pattern->repeat){
 					_stages_repeats ++;
 				}else{
+					if (_current_pattern->clb != 0){
+						_current_pattern->clb ();
+						return _lc_change;
+					}
 					_current_pattern = 0;
 					return _lc_idle;
 				}
@@ -148,14 +173,33 @@ __led_stages _led_get_next_stage(void){
 
 //Processing for extended pattern
 __led_stages _led_get_next_stage_extend(void){
-	
+
 	LGS_pos_step++;
-	if (LGS_pos_step >= demo.steps[LGS_pos].patterns_count){
+	if (LGS_pos_step >= _fn_control.pattern_link->steps[LGS_pos].patterns_count){
 		LGS_pos_step = 0;
 		LGS_pos++;
-		if (demo.steps_count <= LGS_pos) LGS_pos = 0;
-		if (demo.steps[LGS_pos].check_clb != 0){
-			if (!demo.steps[LGS_pos].check_clb()){
+		if (LGS_pos >= _fn_control.pattern_link->steps_count){
+			LGS_pos = 0;
+			if (_fn_control.pattern_link->repeats != 0){
+				_extended_repeats++;
+				if (_extended_repeats > _fn_control.pattern_link->repeats){
+					if (_fn_control.pattern_link->clb != 0){
+						_fn_control.pattern_link->clb();
+						return _lc_change;
+					}
+					return _lc_idle;
+				}
+			}
+			/* Move to check repeat's counter
+			if (_fn_control.pattern_link->clb != 0) {
+				_fn_control.pattern_link->clb();
+				return _lc_change;
+			}
+			*/
+		}
+		
+		if (_fn_control.pattern_link->steps[LGS_pos].check_clb != 0){
+			if (!_fn_control.pattern_link->steps[LGS_pos].check_clb()){
 				_fn_control.step.length = 0;
 				_fn_control.step.light = 0;
 				_fn_control.control_next_stage = _led_get_next_stage_extend;

@@ -18,12 +18,10 @@
 typedef enum {
 	_lc_idle,
 	_lc_short_on,
-	_lc_short_off,
-	_lc_long_on,
-	_lc_long_off,
 	_lc_simple,
 	_lc_control,
 	_lc_skip,
+	_lc_change, 
 } __led_stages; 
 
 typedef struct {
@@ -41,12 +39,14 @@ typedef struct {
 	_led_pattern_config * steps;
 	uint8_t steps_count; 
 	uint8_t repeats; //0 - infinity
+	void (*clb)(void); //When repeats end call this clb if it's set
 } _led_pattern;
 
 typedef struct{
 	_led_pat_stage step;
 	bool control_enable; 
 	__led_stages (*control_next_stage)(void);
+	_led_pattern * pattern_link;
 }_led_lc_control;
 
 typedef struct{
@@ -56,6 +56,7 @@ typedef struct{
 	uint16_t time_off;
 	uint8_t bright;
 	uint8_t repeat; // 0 - infinity repeats;
+	void (*clb)(void); //When repeats end call this clb if it's set
 } _led_simple_pattern;
 
 //API functions
@@ -64,3 +65,5 @@ void led_go(void);
 void led_start_extend_stage(_led_pattern * extend_pattern);
 void led_start_simple_stage(_led_simple_pattern * simple_pattern);
 void led_stop(void);
+
+#include "led_patterns.h"
